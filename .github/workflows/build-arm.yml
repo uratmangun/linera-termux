@@ -1,12 +1,16 @@
-name: Build Linera ARM64
+name: Build Linera ARM64 Android
 
 on:
   workflow_dispatch:  # Manual trigger
 
 jobs:
-  build-arm64:
+  build-android-arm64:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # 2 hour timeout for compilation
+    timeout-minutes: 180  # 3 hour timeout for compilation
+    
+    env:
+      ANDROID_NDK_VERSION: r26d
+      API_LEVEL: "24"
     
     steps:
       - name: Checkout linera-protocol
@@ -17,30 +21,53 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
           
-      - name: Add ARM64 target
-        run: rustup target add aarch64-unknown-linux-gnu
+      - name: Add Android ARM64 target
+        run: rustup target add aarch64-linux-android
+        
+      - name: Setup Android NDK
+        run: |
+          # Download Android NDK
+          wget -q https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          unzip -q android-ndk-${ANDROID_NDK_VERSION}-linux.zip
+          export ANDROID_NDK_HOME=$PWD/android-ndk-${ANDROID_NDK_VERSION}
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
           
-      - name: Install cross-compilation tools
+          # Set up toolchain paths
+          TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+          echo "TOOLCHAIN=$TOOLCHAIN" >> $GITHUB_ENV
+          
+          # Add to PATH
+          echo "$TOOLCHAIN/bin" >> $GITHUB_PATH
+          
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          sudo apt-get install -y protobuf-compiler libprotobuf-dev
-          sudo apt-get install -y pkg-config
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
           
-      - name: Build for ARM64
+      - name: Configure cargo for Android
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << EOF
+          [target.aarch64-linux-android]
+          ar = "${TOOLCHAIN}/bin/llvm-ar"
+          linker = "${TOOLCHAIN}/bin/aarch64-linux-android${API_LEVEL}-clang"
+          EOF
+          
+      - name: Build for Android ARM64
         env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+          CC_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang
+          CXX_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang++
+          AR_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/llvm-ar
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang
         run: |
           cargo build -p linera-service --release \
-            --target aarch64-unknown-linux-gnu \
+            --target aarch64-linux-android \
             --no-default-features \
             --features wasmer
             
       - name: Upload linera binary
         uses: actions/upload-artifact@v4
         with:
-          name: linera-arm64
-          path: target/aarch64-unknown-linux-gnu/release/linera
+          name: linera-android-arm64
+          path: target/aarch64-linux-android/release/linera
           retention-days: 30
