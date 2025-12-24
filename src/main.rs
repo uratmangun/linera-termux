@@ -12,6 +12,7 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -53,6 +54,9 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // Static file serving for web UI
+    let web_dir = std::env::var("WEB_DIR").unwrap_or_else(|_| "./web".to_string());
+    
     // Build router
     let app = Router::new()
         // Service management
@@ -70,6 +74,8 @@ async fn main() {
         .route("/graphql/system", post(proxy_system_graphql))
         // Health check
         .route("/health", get(health_check))
+        // Serve static files (web UI)
+        .fallback_service(ServeDir::new(&web_dir))
         .layer(cors)
         .with_state(state);
 
@@ -81,6 +87,7 @@ async fn main() {
 
     let addr = format!("0.0.0.0:{}", port);
     info!("Listening on {}", addr);
+    info!("Web UI available at http://localhost:{}/", port);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

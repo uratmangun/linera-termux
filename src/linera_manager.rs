@@ -102,11 +102,17 @@ impl LineraManager {
             return Err(anyhow!("Failed to get wallet info: {}", stderr));
         }
 
+        // Combine stdout and stderr since linera writes info to both
         let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let combined = format!("{}\n{}", stderr, stdout);
         
-        // Parse the output to extract chain_id and public_key
-        let chain_id = self.extract_field(&stdout, "Chain ID")?;
-        let public_key = self.extract_field(&stdout, "Public Key")?;
+        // Parse the output to extract chain_id
+        let chain_id = self.extract_field_flexible(&combined, "Chain ID")?;
+        
+        // Public key may not exist for faucet-created wallets
+        let public_key = self.extract_field_flexible(&combined, "Default owner")
+            .unwrap_or_else(|_| "No owner key".to_string());
 
         Ok(WalletInfo {
             chain_id,
@@ -248,6 +254,25 @@ impl LineraManager {
         }
         
         Err(anyhow!("Could not find {} in output", field))
+    }
+
+    /// Helper to extract field from linera output (flexible with multiple spaces)
+    fn extract_field_flexible(&self, output: &str, field: &str) -> Result<String> {
+        for line in output.lines() {
+            if line.contains(field) {
+                // Split by field name and take what comes after
+                if let Some(rest) = line.split(field).nth(1) {
+                    // Remove leading colons, spaces, etc.
+                    let value = rest.trim_start_matches(':').trim();
+                    if !value.is_empty() {
+                        return Ok(value.to_string());
+                    }
+                }
+            }
+        }
+        
+        // Fallback to original method
+        self.extract_field(output, field)
     }
 }
 
