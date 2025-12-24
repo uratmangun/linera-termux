@@ -1,1 +1,16 @@
-.vercel
+# Rust
+/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Linera
+*.json
+!package.json

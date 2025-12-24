@@ -1,105 +1,93 @@
-# AI IDE Template
+# Linera REST API Server for Termux
 
-A minimal template for AI-powered IDE projects with pre-configured settings for popular AI coding assistants.
+A Rust REST API server that wraps the Linera CLI, enabling wallet management and GraphQL proxying on Android/Termux.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Furatmangun%2Fai-ide-template)
+## Features
 
-## 🚀 Quick Start
+- **Service Management**: Start/stop linera service via REST API
+- **Wallet Operations**: Initialize wallet, get info, generate keypairs
+- **Owner Management**: Add owners to multi-owner chains
+- **GraphQL Proxy**: Forward queries to linera service
 
-### Prerequisites
+## API Endpoints
 
-Make sure you have the [GitHub CLI](https://cli.github.com/) installed:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/service/start` | POST | Start linera service |
+| `/service/stop` | POST | Stop linera service |
+| `/service/status` | GET | Get service status |
+| `/wallet/init` | POST | Initialize wallet with faucet |
+| `/wallet/info` | GET | Get wallet info |
+| `/wallet/keygen` | POST | Generate new keypair |
+| `/owner/add` | POST | Add owner to chain |
+| `/graphql` | POST | Proxy GraphQL to chain/app |
+| `/graphql/system` | POST | Proxy system GraphQL |
+| `/health` | GET | Health check |
 
-```bash
-# macOS
-brew install gh
+## Quick Start
 
-# Windows
-winget install --id GitHub.cli
-
-# Linux (Debian/Ubuntu)
-sudo apt install gh
-
-# Authenticate with GitHub
-gh auth login
-```
-
-### Clone this Template
-
-Use the GitHub CLI to create a new repository from this template:
-
-#### Create a Private Repository (Recommended)
+### 1. Build the REST Server
 
 ```bash
-gh repo create my-new-repo --template uratmangun/ai-ide-template --private --clone
+cargo build --release
 ```
 
-#### Create a Public Repository
+### 2. Set Environment Variables
 
 ```bash
-gh repo create my-new-repo --template uratmangun/ai-ide-template --public --clone
+export LINERA_BIN=~/bin/linera
+export LINERA_WALLET=~/linera-wallet.json
+export LINERA_KEYSTORE=~/linera-keystore.json
+export PORT=3000
 ```
 
-### Command Options
-
-| Flag | Description |
-|------|-------------|
-| `--template` | Specify the template repository to use |
-| `--private` | Create a private repository |
-| `--public` | Create a public repository |
-| `--clone` | Clone the new repository to your local machine |
-
-### Additional Options
+### 3. Run the Server
 
 ```bash
-# Create without cloning (useful for remote-only setup)
-gh repo create my-new-repo --template uratmangun/ai-ide-template --private
-
-# Clone to a specific directory
-gh repo create my-new-repo --template uratmangun/ai-ide-template --private --clone
-cd my-new-repo
+./target/release/linera-rest-server
 ```
 
-## 📁 What's Included
+## Usage Examples
 
-This template comes pre-configured with:
+### Initialize Wallet
 
-- **`.agent/`** - Agent workflow configurations
-- **`.cursor/`** - Cursor IDE settings
-- **`.kiro/`** - Kiro AI assistant configurations
-- **`index.html`** - Template landing page
+```bash
+curl -X POST http://localhost:3000/wallet/init \
+  -H "Content-Type: application/json" \
+  -d '{"faucet_url": "https://faucet.testnet-conway.linera.net"}'
+```
 
-## 🔧 After Cloning
+### Start Linera Service
 
-1. **Navigate to your new project:**
-   ```bash
-   cd my-new-repo
-   ```
+```bash
+curl -X POST http://localhost:3000/service/start \
+  -H "Content-Type: application/json" \
+  -d '{"port": 8080}'
+```
 
-2. **Customize the template:**
-   - Update `index.html` with your project details
-   - Modify AI assistant configurations as needed
+### Add Owner to Chain
 
-3. **Deploy to Vercel (optional):**
-   ```bash
-   # Install Vercel CLI
-   npm i -g vercel
-   
-   # Deploy
-   vercel --prod
-   
-   # Link to GitHub for auto-deployments
-   vercel git connect
-   ```
+```bash
+curl -X POST http://localhost:3000/owner/add \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "your-chain-id",
+    "public_keys": ["owner-public-key-1", "owner-public-key-2"]
+  }'
+```
 
-## 🌐 Live Demo
+### Query GraphQL
 
-Visit the template landing page: [https://ai-ide-template.vercel.app](https://ai-ide-template.vercel.app)
+```bash
+curl -X POST http://localhost:3000/graphql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "your-chain-id",
+    "app_id": "your-app-id",
+    "query": "{ __schema { types { name } } }"
+  }'
+```
 
-## 📝 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-Made with ❤️ for the AI-assisted development community
+MIT
