@@ -1,6 +1,9 @@
 name: Build Linera ARM64 Android
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:  # Manual trigger
 
 jobs:
@@ -13,18 +16,49 @@ jobs:
       API_LEVEL: "24"
     
     steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for versioning
+          
+      - name: Generate version
+        id: version
+        run: |
+          # Generate version: v{YYYY.MM.DD}-{short-commit-hash}
+          VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+          
+      - name: Check if release exists
+        id: check_release
+        run: |
+          if gh release view "${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.version.outputs.version }} already exists, skipping build"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.version.outputs.version }} does not exist, proceeding with build"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Checkout linera-protocol
+        if: steps.check_release.outputs.exists == 'false'
         uses: actions/checkout@v4
         with:
           repository: linera-io/linera-protocol
+          path: linera-protocol
           
       - name: Install Rust
+        if: steps.check_release.outputs.exists == 'false'
         uses: dtolnay/rust-toolchain@stable
           
       - name: Add Android ARM64 target
+        if: steps.check_release.outputs.exists == 'false'
         run: rustup target add aarch64-linux-android
         
       - name: Setup Android NDK
+        if: steps.check_release.outputs.exists == 'false'
         run: |
           # Download Android NDK
           wget -q https://dl.google.com/android/repository/android-ndk-${ANDROID_NDK_VERSION}-linux.zip
@@ -40,11 +74,13 @@ jobs:
           echo "$TOOLCHAIN/bin" >> $GITHUB_PATH
           
       - name: Install build dependencies
+        if: steps.check_release.outputs.exists == 'false'
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
           
       - name: Configure cargo for Android
+        if: steps.check_release.outputs.exists == 'false'
         run: |
           mkdir -p ~/.cargo
           cat >> ~/.cargo/config.toml << EOF
@@ -54,6 +90,8 @@ jobs:
           EOF
           
       - name: Build for Android ARM64
+        if: steps.check_release.outputs.exists == 'false'
+        working-directory: linera-protocol
         env:
           CC_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang
           CXX_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang++
@@ -65,9 +103,60 @@ jobs:
             --no-default-features \
             --features wasmer
             
-      - name: Upload linera binary
+      - name: Prepare release assets
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          mkdir -p release-assets
+          cp linera-protocol/target/aarch64-linux-android/release/linera release-assets/linera-android-arm64
+          chmod +x release-assets/linera-android-arm64
+          
+          # Create checksum
+          cd release-assets
+          sha256sum linera-android-arm64 > SHA256SUMS.txt
+          
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Linera Android ARM64 ${{ steps.version.outputs.version }}
+          body: |
+            ## Linera CLI for Android ARM64
+            
+            **Version:** ${{ steps.version.outputs.version }}
+            **Build Date:** ${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
+            **Commit:** ${{ github.sha }}
+            
+            ### Installation (Termux)
+            
+            ```bash
+            # Download the binary
+            curl -L -o linera https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/linera-android-arm64
+            
+            # Make it executable
+            chmod +x linera
+            
+            # Move to PATH (optional)
+            mv linera $PREFIX/bin/
+            
+            # Verify installation
+            linera --version
+            ```
+            
+            ### Checksums
+            See `SHA256SUMS.txt` for verification.
+          files: |
+            release-assets/linera-android-arm64
+            release-assets/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload artifact (backup)
+        if: steps.check_release.outputs.exists == 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: linera-android-arm64
-          path: target/aarch64-linux-android/release/linera
-          retention-days: 30
+          name: linera-android-arm64-${{ steps.version.outputs.version }}
+          path: release-assets/
+          retention-days: 7
