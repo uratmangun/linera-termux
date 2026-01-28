@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:  # Manual trigger
 
+permissions:
+  contents: write  # Required to create releases
+
 jobs:
   build-android-arm64:
     runs-on: ubuntu-latest
