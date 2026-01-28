@@ -116,8 +116,8 @@ jobs:
           # Build RocksDB for Android ARM64
           echo "Building RocksDB for Android ARM64..."
           
-          # Clone RocksDB
-          git clone --depth 1 --branch v9.0.0 https://github.com/facebook/rocksdb.git /tmp/rocksdb-src
+          # Clone RocksDB - use v8.1.1 which is compatible with rocksdb crate v0.21.0
+          git clone --depth 1 --branch v8.1.1 https://github.com/facebook/rocksdb.git /tmp/rocksdb-src
           cd /tmp/rocksdb-src
           
           # Create build directory
