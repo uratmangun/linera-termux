@@ -49,13 +49,14 @@ jobs:
           repository: linera-io/linera-protocol
           path: linera-protocol
           
-      - name: Install Rust
+      - name: Install Rust and add Android target
         if: steps.check_release.outputs.exists == 'false'
-        uses: dtolnay/rust-toolchain@stable
-          
-      - name: Add Android ARM64 target
-        if: steps.check_release.outputs.exists == 'false'
-        run: rustup target add aarch64-linux-android
+        working-directory: linera-protocol
+        run: |
+          # Let rustup use the toolchain specified in linera-protocol's rust-toolchain.toml
+          rustup show
+          # Add Android ARM64 target to the active toolchain
+          rustup target add aarch64-linux-android
         
       - name: Setup Android NDK
         if: steps.check_release.outputs.exists == 'false'
