@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: linera-io/linera-protocol
-          ref: linera-v0.15.8  # Use tag compatible with testnet-conway faucet
+          ref: v0.15.8  # Use tag compatible with testnet-conway faucet
           path: linera-protocol
           
       - name: Install Rust and add Android target
