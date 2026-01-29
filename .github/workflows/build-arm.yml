@@ -102,65 +102,21 @@ jobs:
           CXX_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang++
           AR_aarch64_linux_android: ${{ env.TOOLCHAIN }}/bin/llvm-ar
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang
-          # RocksDB cross-compilation settings
-          ROCKSDB_LIB_DIR: /tmp/rocksdb-android/lib
-          ROCKSDB_INCLUDE_DIR: /tmp/rocksdb-android/include
-          LIBROCKSDB_SYS_STATIC: "1"
-          # Tell librocksdb-sys to use pre-built library
-          ROCKSDB_STATIC: "1"
           # Android NDK sysroot for cross-compilation
           TARGET_CC: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang
           TARGET_CXX: ${{ env.TOOLCHAIN }}/bin/aarch64-linux-android${{ env.API_LEVEL }}-clang++
           TARGET_AR: ${{ env.TOOLCHAIN }}/bin/llvm-ar
+          # Disable compression in librocksdb-sys build
+          ROCKSDB_LZ4: "0"
+          ROCKSDB_ZSTD: "0"
+          ROCKSDB_SNAPPY: "0"
+          ROCKSDB_ZLIB: "0"
+          ROCKSDB_BZIP2: "0"
+          # Additional flags to disable compression
+          CXXFLAGS: "-DROCKSDB_LITE -DSNAPPY=0 -DLZ4=0 -DZSTD=0 -DZLIB=0"
         run: |
-          # Build RocksDB for Android ARM64
-          echo "Building RocksDB for Android ARM64..."
-          
-          # Clone RocksDB - use v8.1.1 which is compatible with rocksdb crate v0.21.0
-          git clone --depth 1 --branch v8.1.1 https://github.com/facebook/rocksdb.git /tmp/rocksdb-src
-          cd /tmp/rocksdb-src
-          
-          # Create build directory
-          mkdir -p build && cd build
-          
-          # Configure CMake for Android cross-compilation
-          # Disable all compression to avoid missing library issues on Termux
-          cmake .. \
-            -DCMAKE_SYSTEM_NAME=Android \
-            -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
-            -DCMAKE_ANDROID_NDK=$ANDROID_NDK_HOME \
-            -DCMAKE_ANDROID_STL_TYPE=c++_static \
-            -DCMAKE_ANDROID_API=$API_LEVEL \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DWITH_TESTS=OFF \
-            -DWITH_BENCHMARK_TOOLS=OFF \
-            -DWITH_TOOLS=OFF \
-            -DWITH_GFLAGS=OFF \
-            -DUSE_RTTI=ON \
-            -DPORTABLE=ON \
-            -DFAIL_ON_WARNINGS=OFF \
-            -DROCKSDB_BUILD_SHARED=OFF \
-            -DWITH_LZ4=OFF \
-            -DWITH_SNAPPY=OFF \
-            -DWITH_ZLIB=OFF \
-            -DWITH_ZSTD=OFF \
-            -DWITH_BZ2=OFF
-          
-          # Build RocksDB
-          make -j$(nproc) rocksdb
-          
-          # Install to temporary directory
-          mkdir -p /tmp/rocksdb-android/lib /tmp/rocksdb-android/include
-          cp librocksdb.a /tmp/rocksdb-android/lib/
-          cp -r ../include/* /tmp/rocksdb-android/include/
-          
-          echo "RocksDB built successfully!"
-          ls -la /tmp/rocksdb-android/lib/
-          
-          # Go back to linera-protocol
-          cd $GITHUB_WORKSPACE/linera-protocol
-          
           # Build linera with RocksDB support
+          # librocksdb-sys will build RocksDB from source with compression disabled
           cargo build -p linera-service --release \
             --target aarch64-linux-android \
             --features rocksdb,wasmer
