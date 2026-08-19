@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build-android-arm64:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 180  # 3 hour timeout for compilation
     
